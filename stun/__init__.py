@@ -8,18 +8,16 @@ __version__ = '0.1.0'
 log = logging.getLogger("pystun")
 
 STUN_SERVERS = (
-    'stun.ekiga.net',
-    'stun.ideasip.com',
-    'stun.voiparound.com',
-    'stun.voipbuster.com',
-    'stun.voipstunt.com',
-    'stun.voxgratia.org'
+    'stun.l.google.com',
+    'stun2.l.google.com',
+    'stun3.l.google.com',
+    'stun4.l.google.com'
 )
 
 stun_servers_list = STUN_SERVERS
 
 DEFAULTS = {
-    'stun_port': 3478,
+    'stun_port': 19302,
     'source_ip': '0.0.0.0',
     'source_port': 54320
 }
@@ -116,14 +114,13 @@ def stun_test(sock, host, port, source_ip, source_port, send_data=""):
         while not recieved:
             log.debug("sendto: %s", (host, port))
             try:
-                sock.sendto(data, (host, port))
-            except socket.gaierror:
-                retVal['Resp'] = False
-                return retVal
-            try:
+                a = sock.sendto(data, (host, port))
                 buf, addr = sock.recvfrom(2048)
                 log.debug("recvfrom: %s", addr)
                 recieved = True
+            except socket.gaierror:
+                retVal['Resp'] = False
+                return retVal
             except Exception:
                 recieved = False
                 if count > 0:
@@ -131,9 +128,14 @@ def stun_test(sock, host, port, source_ip, source_port, send_data=""):
                 else:
                     retVal['Resp'] = False
                     return retVal
-        msgtype = binascii.b2a_hex(buf[0:2])
-        bind_resp_msg = dictValToMsgType.get(msgtype) == "BindResponseMsg"
-        tranid_match = tranid.upper() == binascii.b2a_hex(buf[4:20]).upper()
+        if binascii.b2a_hex(buf[0:2]) and binascii.b2a_hex(buf[4:20]):
+            msgtype = binascii.b2a_hex(buf[0:2]).decode('utf-8')
+            msg_tranid = binascii.b2a_hex(buf[4:20]).upper().decode('utf-8')
+        else:
+            retVal['Resp'] = False
+            return retVal
+        bind_resp_msg = dictValToMsgType.get(str(msgtype)) == "BindResponseMsg"
+        tranid_match = tranid.upper() == msg_tranid
         if bind_resp_msg and tranid_match:
             recvCorr = True
             retVal['Resp'] = True
@@ -141,8 +143,8 @@ def stun_test(sock, host, port, source_ip, source_port, send_data=""):
             len_remain = len_message
             base = 20
             while len_remain:
-                attr_type = binascii.b2a_hex(buf[base:(base + 2)])
-                attr_len = int(binascii.b2a_hex(buf[(base + 2):(base + 4)]), 16)
+                attr_type = binascii.b2a_hex(buf[base:(base + 2)]).decode()
+                attr_len = int(binascii.b2a_hex(buf[(base + 2):(base + 4)]).decode(), 16)
                 port = int(binascii.b2a_hex(buf[base + 6:base + 8]), 16)
                 ip = ".".join([
                     str(int(binascii.b2a_hex(buf[base + 8:base + 9]), 16)),
